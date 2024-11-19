@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { PlusCircle, Trash2, CheckCircle, Circle, Edit2 } from "lucide-react";
 
 interface Task {
   id: number;
   title: string;
-  completed: boolean; 
+  completed: boolean;
   isEditing: boolean;
 }
 
@@ -14,8 +14,8 @@ const TaskManager = () => {
     { id: 343434, title: "Sample Task", completed: false, isEditing: false },
   ]);
   const [response, setResponse] = useState<string>("");
+  const inputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
-  // Utility Functions
   const toggleCompleted = (taskId: number) => {
     setTasks(
       tasks.map((task) =>
@@ -28,7 +28,7 @@ const TaskManager = () => {
     setTasks(
       tasks.map((task) =>
         task.id === taskId
-          ? { ...task, isEditing: !task.isEditing }
+          ? { ...task, isEditing: true }
           : { ...task, isEditing: false }
       )
     );
@@ -50,17 +50,12 @@ const TaskManager = () => {
 
       if (res.ok) {
         const data = await res.json();
-        console.log("Task deleted successfully:", data.message);
-        
-        
         setTasks(tasks.filter((task) => task.id !== taskId));
         setResponse("Task deleted successfully!");
       } else {
-        console.error("Failed to delete task:", res.statusText);
         setResponse("Failed to delete the task.");
       }
-    } catch (error) {
-      console.error("Error deleting task:", error);
+    } catch {
       setResponse("An error occurred while deleting the task.");
     }
   };
@@ -69,12 +64,12 @@ const TaskManager = () => {
     const taskToEdit = tasks.find((task) => task.id === taskId);
 
     if (!taskToEdit || taskToEdit.title.trim() === "") {
-      return; 
+      return;
     }
 
     const edit = {
       editTaskID: taskId,
-      textEdit: taskToEdit.title, //
+      textEdit: taskToEdit.title,
     };
 
     try {
@@ -87,22 +82,19 @@ const TaskManager = () => {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        console.log("Task updated successfully:", data.message);
-        
         setTasks((prevTasks) =>
           prevTasks.map((task) =>
             task.id === taskId ? { ...task, title: taskToEdit.title } : task
           )
         );
-      } else {
-        console.error("Failed to update task:", res.statusText);
       }
-    } catch (error) {
-      console.error("Error updating task:", error);
-    }
+    } catch {}
 
-    toggleEdit(taskId); 
+    setTasks(
+      tasks.map((task) =>
+        task.id === taskId ? { ...task, isEditing: false } : task
+      )
+    );
   };
 
   const editText = (taskId: number, newTitle: string) => {
@@ -113,7 +105,6 @@ const TaskManager = () => {
     );
   };
 
-  // Event Handlers
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -139,17 +130,23 @@ const TaskManager = () => {
       });
 
       const data = await res.json();
-      console.log(res);
       setResponse(data.message || "Task submitted successfully!");
       setTasks((prevTasks) => [...prevTasks, newTask]);
-      setTask(""); 
-    } catch (error) {
-      console.error("Error submitting task:", error);
+      setTask("");
+    } catch {
       setResponse("Failed to submit the task.");
     }
   };
 
-  // JSX Render
+  useEffect(() => {
+    tasks.forEach((task) => {
+      if (task.isEditing) {
+        const input = inputRefs.current.get(task.id);
+        if (input) input.focus();
+      }
+    });
+  }, [tasks]);
+
   return (
     <div className="flex justify-center items-center max-w-2xl mx-auto p-4 h-[100vh]">
       <div className="bg-white rounded-lg shadow-lg p-6 h-fit">
@@ -175,10 +172,8 @@ const TaskManager = () => {
           </label>
         </form>
 
-        
         {response && <div className="text-red-600 mb-3">{response}</div>}
 
-        
         {tasks.length === 0 ? (
           <div className="bg-blue-50 text-blue-600 p-4 rounded-lg">
             No tasks yet. Add some tasks to get started!
@@ -204,11 +199,13 @@ const TaskManager = () => {
                   </span>
                 ) : (
                   <input
+                    ref={(el) => el && inputRefs.current.set(task.id, el)}
                     type="text"
                     value={task.title}
                     onChange={(e) => editText(task.id, e.target.value)}
-                    onBlur={() => saveEdit(task.id)}
-                    onKeyPress={() => saveEdit(task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveEdit(task.id);
+                    }}
                     className="flex-1 border rounded py-1 px-2 focus:outline-none"
                   />
                 )}
@@ -219,7 +216,7 @@ const TaskManager = () => {
                 >
                   <Edit2 className="h-5 w-5" />
                 </button>
-                <button 
+                <button
                   onClick={() => handleDelete(task.id)}
                   className="text-gray-400 opacity-0 group-hover:opacity-100 hover:text-blue-800 transition-opacity"
                 >
